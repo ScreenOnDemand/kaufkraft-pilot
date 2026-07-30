@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Kaufkraft Pilot - Düsseldorf</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- MapLibre & PMTiles Bibliotheken (kostenlos & Open Source) -->
+    <script src="https://unpkg.com/maplibre-gl@3.3.1/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.3.1/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://unpkg.com/pmtiles@2.11.0/dist/index.js"></script>
+    
+    <style>
+        body { margin: 0; padding: 0; }
+        #map { width: 100vw; height: 100vh; }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <script>
+        // PMTiles-Protokoll aktivieren
+        let protocol = new pmtiles.Protocol();
+        maplibregl.addProtocol("pmtiles", protocol.tile);
+
+        // Die Grundkarte (OpenStreetMap) initialisieren
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: {
+                version: 8,
+                sources: {
+                    'osm-background': {
+                        type: 'raster',
+                        tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+                        tileSize: 256,
+                        attribution: '&copy; OpenStreetMap'
+                    }
+                },
+                layers: [{
+                    id: 'osm-tiles',
+                    type: 'raster',
+                    source: 'osm-background'
+                }]
+            },
+            center: [6.78, 51.22], // Düsseldorf Koordinaten
+            zoom: 11 // Start-Zoom
+        });
+
+        map.on('load', () => {
+            // Deine eigene PMTiles-Datei laden
+            map.addSource('duesseldorf-daten', {
+                type: 'vector',
+                url: 'pmtiles://duesseldorf_kaufkraft.pmtiles'
+            });
+
+            // Deine Gitter-Kacheln als visuelle Ebene hinzufügen
+            map.addLayer({
+                'id': 'gitter-layer',
+                'type': 'fill',
+                'source': 'duesseldorf-daten',
+                'source-layer': 'Duesseldorf_Gitter_Fertig', // Name der QGIS-Ebene
+                'paint': {
+                    // Hier ist dein CI-Blauverlauf (anhand der Spalte 'einwohner')
+                    'fill-color': [
+                        'interpolate',
+                        ['linear'],
+                        ['get', 'einwohner'],
+                        0, '#f7fbff',      // fast weiß (0 Einwohner)
+                        50, '#c6dbef',     // hellblau
+                        100, '#6baed6',    // mittelblau
+                        250, '#2171b5',    // dunkelblau
+                        500, '#08306b'     // sehr dunkelblau (viele Einwohner)
+                    ],
+                    'fill-opacity': 0.75, // Leicht transparent, damit man die Straßen drunter sieht
+                    'fill-outline-color': '#ffffff' // Weiße Ränder für die Kacheln
+                }
+            });
+
+            // Interaktion: Pop-up beim Klicken
+            map.on('click', 'gitter-layer', (e) => {
+                const einwohner = e.features[0].properties.einwohner;
+                new maplibregl.Popup()
+                    .setLngLat(e.lngLat)
+                    .setHTML(`<strong>Einwohner auf dieser 100x100m Kachel:</strong> <br><span style="font-size:18px; color:#2171b5;">${einwohner}</span>`)
+                    .addTo(map);
+            });
+
+            // Maus-Zeiger beim Hovern verändern
+            map.on('mouseenter', 'gitter-layer', () => { map.getCanvas().style.cursor = 'pointer'; });
+            map.on('mouseleave', 'gitter-layer', () => { map.getCanvas().style.cursor = ''; });
+        });
+    </script>
+</body>
+</html>
