@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
-    <!-- MapLibre & PMTiles Bibliotheken (kostenlos & Open Source) -->
+    <!-- MapLibre & PMTiles Bibliotheken -->
     <script src="https://unpkg.com/maplibre-gl@3.3.1/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@3.3.1/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/pmtiles@2.11.0/dist/index.js"></script>
@@ -13,18 +13,15 @@
     <style>
         body { margin: 0; padding: 0; }
         #map { width: 100vw; height: 100vh; }
-        /* Ein kleines bisschen Styling für das Popup, damit es sauber aussieht */
         .maplibregl-popup-content { font-family: Arial, sans-serif; padding: 15px; border-radius: 8px; }
     </style>
 </head>
 <body>
     <div id="map"></div>
     <script>
-        // 1. PMTiles-Protokoll aktivieren
         let protocol = new pmtiles.Protocol();
         maplibregl.addProtocol("pmtiles", protocol.tile);
 
-        // 2. Die Grundkarte (OpenStreetMap) initialisieren
         const map = new maplibregl.Map({
             container: 'map',
             style: {
@@ -43,47 +40,42 @@
                     source: 'osm-background'
                 }]
             },
-            center: [6.78, 51.22], // Düsseldorf Koordinaten
-            zoom: 11 // Start-Zoom
+            center: [6.78, 51.22], // Düsseldorf
+            zoom: 11
         });
 
         map.on('load', () => {
             
-            // 3. Den genauen Pfad zur Datei absolut kugelsicher machen
             const pmtilesUrl = new URL('duesseldorf_kaufkraft.pmtiles', window.location.href).href;
 
-            // 4. Deine eigene PMTiles-Datei laden
             map.addSource('duesseldorf-daten', {
                 type: 'vector',
                 url: 'pmtiles://' + pmtilesUrl
             });
 
-            // 5. Deine Gitter-Kacheln als visuelle Ebene hinzufügen
+            // Hier ist jetzt DEIN exakter, neuer QGIS-Ebenenname eingetragen!
             map.addLayer({
                 'id': 'gitter-layer',
                 'type': 'fill',
                 'source': 'duesseldorf-daten',
-                'source-layer': 'duesseldorf_gitter_fertig__duesseldorf_gitter_100m__de_grid_etrs89laea_100m__de_grid_laea_100m', // Der exakte QGIS-Name
+                'source-layer': 'Duessldorf_Web_Format — duesseldorf_gitter_fertig__duesseldorf_gitter_100m__de_grid_etrs89laea_100m__de_grid_laea_100m', 
                 'paint': {
-                    // Der Farbverlauf anhand der Spalte 'einwohner'
                     'fill-color': [
                         'interpolate',
                         ['linear'],
                         ['get', 'einwohner'],
-                        0, '#f7fbff',      // fast weiß (0 Einwohner)
-                        50, '#c6dbef',     // hellblau
-                        100, '#6baed6',    // mittelblau
-                        250, '#2171b5',    // dunkelblau
-                        500, '#08306b'     // sehr dunkelblau (viele Einwohner)
+                        0, '#f7fbff',      
+                        50, '#c6dbef',     
+                        100, '#6baed6',    
+                        250, '#2171b5',    
+                        500, '#08306b'     
                     ],
-                    'fill-opacity': 0.75, // Leicht transparent, damit man die Straßen sieht
-                    'fill-outline-color': '#ffffff' // Weiße Ränder für die Kacheln
+                    'fill-opacity': 0.75, 
+                    'fill-outline-color': '#ffffff' 
                 }
             });
 
-            // 6. Interaktion: Pop-up beim Klicken
             map.on('click', 'gitter-layer', (e) => {
-                // Sicherheitscheck, falls Kachel leer ist
                 if (!e.features.length) return;
                 
                 const einwohner = e.features[0].properties.einwohner;
@@ -94,12 +86,10 @@
                     .addTo(map);
             });
 
-            // 7. Maus-Zeiger beim Hovern verändern (Zeigefinger)
             map.on('mouseenter', 'gitter-layer', () => { 
                 map.getCanvas().style.cursor = 'pointer'; 
             });
             
-            // Maus-Zeiger wieder zurücksetzen, wenn man die Kachel verlässt
             map.on('mouseleave', 'gitter-layer', () => { 
                 map.getCanvas().style.cursor = ''; 
             });
