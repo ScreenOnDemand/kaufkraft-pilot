@@ -46,11 +46,14 @@
         });
 
         map.on('load', () => {
-            // Deine eigene PMTiles-Datei laden
-            map.addSource('duesseldorf-daten', {
-                type: 'vector',
-                url: 'pmtiles://duesseldorf_kaufkraft.pmtiles'
-            });
+                     // Den GitHub-Pfad automatisch erkennen
+         const baseUrl = window.location.href.split('?')[0].replace(/\/$/, '').replace(/\/index\.html$/, '');
+
+         // Deine eigene PMTiles-Datei laden
+         map.addSource('duesseldorf-daten', {
+             type: 'vector',
+             url: 'pmtiles://' + baseUrl + '/duesseldorf_kaufkraft.pmtiles'
+         });
 
             // Deine Gitter-Kacheln als visuelle Ebene hinzufügen
             map.addLayer({
