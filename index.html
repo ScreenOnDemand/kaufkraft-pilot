@@ -1,138 +1,109 @@
 <!DOCTYPE html>
-<html>
+<html lang="de">
 <head>
-    <title>Kaufkraft Pilot - Düsseldorf</title>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="utf-8">
+    <title>Düsseldorf Kaufkraft - Geo-Intelligence</title>
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
     
-    <!-- MapLibre & PMTiles Bibliotheken -->
-    <script src="https://unpkg.com/maplibre-gl@3.3.1/dist/maplibre-gl.js"></script>
-    <link href="https://unpkg.com/maplibre-gl@3.3.1/dist/maplibre-gl.css" rel="stylesheet" />
-    <script src="https://unpkg.com/pmtiles@2.11.0/dist/index.js"></script>
+    <!-- MapLibre GL CSS & JS (Die Karte) -->
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet">
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
     
+    <!-- PMTiles Library (Der Übersetzer) -->
+    <script src="https://unpkg.com/pmtiles@3.0.6/dist/index.js"></script>
+
     <style>
-        body { margin: 0; padding: 0; }
-        #map { width: 100vw; height: 100vh; }
-        .maplibregl-popup-content { font-family: Arial, sans-serif; padding: 15px; border-radius: 8px; }
-        
-        /* Das Design für unsere neue Legende */
-        .legende {
-            position: absolute;
-            bottom: 30px;
-            right: 20px;
-            background: white;
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            font-family: Arial, sans-serif;
-            font-size: 13px;
-            color: #333;
-            z-index: 1; /* Sorgt dafür, dass die Legende ÜBER der Karte liegt */
-        }
-        .legende h4 {
-            margin: 0 0 10px 0;
-            font-size: 14px;
-        }
-        .legende-reihe {
-            display: flex;
-            align-items: center;
-            margin-bottom: 5px;
-        }
-        .farb-kaestchen {
-            width: 15px;
-            height: 15px;
-            margin-right: 10px;
-            border: 1px solid #ccc;
-            border-radius: 3px;
-        }
+        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+        /* Schickes Design für das Klick-Fenster */
+        .maplibregl-popup-content { padding: 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
     </style>
 </head>
 <body>
     <div id="map"></div>
-    
-    <!-- Hier ist der Inhalt der Legende -->
-    <div class="legende">
-        <h4>Einwohner pro 100m²</h4>
-        <div class="legende-reihe"><div class="farb-kaestchen" style="background: #f7fbff;"></div>0 - 49</div>
-        <div class="legende-reihe"><div class="farb-kaestchen" style="background: #c6dbef;"></div>50 - 99</div>
-        <div class="legende-reihe"><div class="farb-kaestchen" style="background: #6baed6;"></div>100 - 249</div>
-        <div class="legende-reihe"><div class="farb-kaestchen" style="background: #2171b5;"></div>250 - 499</div>
-        <div class="legende-reihe"><div class="farb-kaestchen" style="background: #08306b;"></div>500+</div>
-    </div>
 
     <script>
+        // 1. PMTiles Protokoll registrieren (WICHTIGSTES LEARNING)
         let protocol = new pmtiles.Protocol();
         maplibregl.addProtocol("pmtiles", protocol.tile);
 
+        // 2. Den perfekten Pfad zur PMTiles-Datei berechnen (verhindert CORS-Fehler)
+        let PMTILES_URL = new URL("duesseldorf_kaufkraft_final.pmtiles", window.location.href).href;
+
+        // 3. Die Karte aufbauen
         const map = new maplibregl.Map({
             container: 'map',
+            // Kostenlose Hintergrundkarte ohne API-Key
             style: {
-                version: 8,
-                sources: {
-                    'osm-background': {
-                        type: 'raster',
-                        tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-                        tileSize: 256,
-                        attribution: '&copy; OpenStreetMap'
+                'version': 8,
+                'sources': {
+                    'osm': {
+                        'type': 'raster',
+                        'tiles': ['https://a.tile.openstreetmap.org/{z}/{x}/{y}.png'],
+                        'tileSize': 256,
+                        'attribution': '&copy; OpenStreetMap'
                     }
                 },
-                layers: [{
-                    id: 'osm-tiles',
-                    type: 'raster',
-                    source: 'osm-background'
+                'layers': [{
+                    'id': 'osm-tiles',
+                    'type': 'raster',
+                    'source': 'osm'
                 }]
             },
-            center: [6.78, 51.22], // Düsseldorf
+            center: [6.7828, 51.2277], // Zentrum Düsseldorf
             zoom: 11
         });
 
+        // 4. Unsere Gitter-Daten laden, sobald der Hintergrund da ist
         map.on('load', () => {
             
-            const pmtilesUrl = new URL('duesseldorf_kaufkraft.pmtiles', window.location.href).href;
-
-            map.addSource('duesseldorf-daten', {
+            // A. Quelle hinzufügen
+            map.addSource('zensus-daten', {
                 type: 'vector',
-                url: 'pmtiles://' + pmtilesUrl
+                url: "pmtiles://" + PMTILES_URL
             });
 
+            // B. Gitter zeichnen (Wir färben es blau, je mehr Familien dort leben)
             map.addLayer({
                 'id': 'gitter-layer',
                 'type': 'fill',
-                'source': 'duesseldorf-daten',
-                'source-layer': 'Duessldorf_Web_Format — duesseldorf_gitter_fertig__duesseldorf_gitter_100m__de_grid_etrs89laea_100m__de_grid_laea_100m', 
+                'source': 'zensus-daten',
+                'source-layer': 'duesseldorf_kaufkraft_final', // Das QGIS-Codewort!
                 'paint': {
                     'fill-color': [
                         'interpolate',
                         ['linear'],
-                        ['to-number', ['get', 'einwohner']], 
-                        0, '#f7fbff',      
-                        50, '#c6dbef',     
-                        100, '#6baed6',    
-                        250, '#2171b5',    
-                        500, '#08306b'     
+                        ['get', 'proxy_familien'],
+                        0, 'rgba(200, 200, 200, 0.1)', // 0 Familien = fast unsichtbar
+                        50, 'rgba(0, 100, 255, 0.8)'   // 50+ Familien = starkes Blau
                     ],
-                    'fill-opacity': 0.75, 
-                    'fill-outline-color': '#ffffff' 
+                    'fill-outline-color': 'rgba(255,255,255,0.4)'
                 }
             });
 
+            // C. Pop-up beim Klicken hinzufügen (Deine Daten-Kontrolle!)
             map.on('click', 'gitter-layer', (e) => {
-                if (!e.features.length) return;
-                
-                const einwohner = e.features[0].properties.einwohner;
-                
+                const props = e.features[0].properties;
                 new maplibregl.Popup()
                     .setLngLat(e.lngLat)
-                    .setHTML(`<strong>Einwohner auf dieser 100x100m Kachel:</strong> <br><span style="font-size:18px; color:#2171b5;">${einwohner}</span>`)
+                    .setHTML(`
+                        <h3 style="margin-top:0;">100m Gitter-Daten</h3>
+                        <strong>Familien:</strong> ${props.proxy_familien}<br>
+                        <strong>Singles:</strong> ${props.proxy_singles}<br>
+                        <strong>Paare:</strong> ${props.proxy_paare}<br>
+                        <strong>Alter 20-39:</strong> ${props.proxy_alter_20_39}<br>
+                        <strong>Miete:</strong> ${props.proxy_miete} €/m²<br>
+                        <strong>Eigentümerquote:</strong> ${props.proxy_eigentuemer} %
+                    `)
                     .addTo(map);
             });
 
-            map.on('mouseenter', 'gitter-layer', () => { 
-                map.getCanvas().style.cursor = 'pointer'; 
+            // Mauszeiger zu einem "Finger" machen, wenn man über ein Kästchen fährt
+            map.on('mouseenter', 'gitter-layer', () => {
+                map.getCanvas().style.cursor = 'pointer';
             });
-            
-            map.on('mouseleave', 'gitter-layer', () => { 
-                map.getCanvas().style.cursor = ''; 
+            map.on('mouseleave', 'gitter-layer', () => {
+                map.getCanvas().style.cursor = '';
             });
         });
     </script>
