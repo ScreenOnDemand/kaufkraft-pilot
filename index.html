@@ -5,18 +5,34 @@
     <title>Düsseldorf Kaufkraft - Geo-Intelligence</title>
     <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
     
-    <!-- MapLibre GL CSS & JS (Die Karte) -->
+    <!-- MapLibre GL CSS & JS -->
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet">
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
     
-    <!-- PMTiles Library (Der korrekte Übersetzer für den Browser) -->
+    <!-- PMTiles Library -->
     <script src="https://unpkg.com/pmtiles@3.0.6/dist/pmtiles.js"></script>
 
     <style>
-        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        body { margin: 0; padding: 0; font-family: 'Helvetica Neue', Arial, sans-serif; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; }
-        /* Schickes Design für das Klick-Fenster */
-        .maplibregl-popup-content { padding: 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        
+        /* Schickeres Design für das neue Scoring-Pop-up */
+        .maplibregl-popup-content { 
+            padding: 20px; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            width: 220px;
+        }
+        .score-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .score-value {
+            font-weight: bold;
+            color: #007cff;
+        }
     </style>
 </head>
 <body>
@@ -27,10 +43,9 @@
         let protocol = new pmtiles.Protocol();
         maplibregl.addProtocol("pmtiles", protocol.tile);
 
-        // 2. Den perfekten Pfad zur PMTiles-Datei berechnen
         let PMTILES_URL = new URL("duesseldorf_kaufkraft_final.pmtiles", window.location.href).href;
 
-        // 3. Die Karte aufbauen
+        // 2. Karte aufbauen
         const map = new maplibregl.Map({
             container: 'map',
             style: {
@@ -49,61 +64,97 @@
                     'source': 'osm'
                 }]
             },
-            center: [6.7828, 51.2277], // Zentrum Düsseldorf
+            center: [6.7828, 51.2277], // Düsseldorf
             zoom: 11
         });
 
-        // 4. Unsere Gitter-Daten laden, sobald der Hintergrund da ist
-        map.on('load', () => {
+        // ==========================================
+        // NEU: DAS GEHIRN (Scoring-Logik)
+        // ==========================================
+        function calculateScores(props) {
+            // Hilfsfunktion: Begrenzt Werte immer auf maximal 100 und minimal 0
+            const cap = (val) => Math.min(Math.max(Math.round(val), 0), 100);
+
+            // 1. Familien (Fokus auf reine Anzahl von Familien)
+            // Annahme: 25 Familien in einem 100m Gitter = 100% Hotspot
+            let scoreFamilien = (props.proxy_familien / 25) * 100; 
             
-            // A. Quelle hinzufügen
+            // 2. YUPs (Young Urban Professionals)
+            // Mix aus jungen Leuten (20-39) und Singles
+            let scoreYUPs = (props.proxy_alter_20_39 / 60) * 50 + (props.proxy_singles / 50) * 50;
+
+            // 3. Premium / DINKs (Double Income No Kids)
+            // Mix aus Paaren, hohen Mieten (ab 15€/qm = max) und Eigentumsquote
+            let scorePremium = (props.proxy_paare / 25) * 40 + (props.proxy_miete / 15) * 30 + (props.proxy_eigentuemer / 50) * 30;
+
+            // 4. Best Agers (60+ Jahre)
+            // Mix aus älterer Bevölkerung und Eigentum
+            let scoreBestAgers = (props.proxy_alter_60_plus / 50) * 70 + (props.proxy_eigentuemer / 50) * 30;
+
+            // Falls Werte nicht vorhanden sind (NaN), setzen wir sie auf 0
+            return {
+                familien: cap(scoreFamilien) || 0,
+                yups: cap(scoreYUPs) || 0,
+                premium: cap(scorePremium) || 0,
+                bestAgers: cap(scoreBestAgers) || 0
+            };
+        }
+
+        // 3. Daten laden
+        map.on('load', () => {
             map.addSource('zensus-daten', {
                 type: 'vector',
                 url: "pmtiles://" + PMTILES_URL
             });
 
-            // B. Gitter zeichnen (Wir färben es blau, je mehr Familien dort leben)
+            // Gitter zeichnen (Farbe vorerst noch starr auf Familien)
             map.addLayer({
                 'id': 'gitter-layer',
                 'type': 'fill',
                 'source': 'zensus-daten',
-                'source-layer': 'duesseldorf_kaufkraft_final', // Das QGIS-Codewort!
+                'source-layer': 'duesseldorf_kaufkraft_final',
                 'paint': {
                     'fill-color': [
-                        'interpolate',
-                        ['linear'],
-                        ['get', 'proxy_familien'],
-                        0, 'rgba(200, 200, 200, 0.1)', // 0 Familien = fast unsichtbar
-                        50, 'rgba(0, 100, 255, 0.8)'   // 50+ Familien = starkes Blau
+                        'interpolate', ['linear'], ['get', 'proxy_familien'],
+                        0, 'rgba(200, 200, 200, 0.1)', 
+                        50, 'rgba(0, 100, 255, 0.8)'
                     ],
                     'fill-outline-color': 'rgba(255,255,255,0.4)'
                 }
             });
 
-            // C. Pop-up beim Klicken hinzufügen
+            // 4. Das neue Pop-up (Zeigt ab sofort die Cluster-Scores!)
             map.on('click', 'gitter-layer', (e) => {
                 const props = e.features[0].properties;
+                const scores = calculateScores(props); // Gehirn aufrufen
+
                 new maplibregl.Popup()
                     .setLngLat(e.lngLat)
                     .setHTML(`
-                        <h3 style="margin-top:0;">100m Gitter-Daten</h3>
-                        <strong>Familien:</strong> ${props.proxy_familien}<br>
-                        <strong>Singles:</strong> ${props.proxy_singles}<br>
-                        <strong>Paare:</strong> ${props.proxy_paare}<br>
-                        <strong>Alter 20-39:</strong> ${props.proxy_alter_20_39}<br>
-                        <strong>Miete:</strong> ${props.proxy_miete} €/m²<br>
-                        <strong>Eigentümerquote:</strong> ${props.proxy_eigentuemer} %
+                        <h3 style="margin-top:0; border-bottom: 1px solid #ddd; padding-bottom: 8px;">Zielgruppen-Score</h3>
+                        
+                        <div class="score-row">
+                            <span>Familien:</span> 
+                            <span class="score-value">${scores.familien} / 100</span>
+                        </div>
+                        <div class="score-row">
+                            <span>YUPs:</span> 
+                            <span class="score-value">${scores.yups} / 100</span>
+                        </div>
+                        <div class="score-row">
+                            <span>Premium (DINKs):</span> 
+                            <span class="score-value">${scores.premium} / 100</span>
+                        </div>
+                        <div class="score-row">
+                            <span>Best Agers:</span> 
+                            <span class="score-value">${scores.bestAgers} / 100</span>
+                        </div>
                     `)
                     .addTo(map);
             });
 
-            // Mauszeiger zu einem "Finger" machen
-            map.on('mouseenter', 'gitter-layer', () => {
-                map.getCanvas().style.cursor = 'pointer';
-            });
-            map.on('mouseleave', 'gitter-layer', () => {
-                map.getCanvas().style.cursor = '';
-            });
+            map.on('mouseenter', 'gitter-layer', () => map.getCanvas().style.cursor = 'pointer');
+            map.on('mouseleave', 'gitter-layer', () => map.getCanvas().style.cursor = '');
         });
     </script>
 </body>
