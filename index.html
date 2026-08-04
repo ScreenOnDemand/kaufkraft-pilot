@@ -102,15 +102,30 @@
             style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
             center: [6.7828, 51.2277], 
             zoom: 11
-            // pitch und bearing wurden entfernt, Karte ist wieder flach
         });
 
-        // Frosted Glass Farben: Maximale Deckkraft auf 0.45 reduziert für sanftes Leuchten
+        // "Exklusiv"-Mathematik: Nur Scores ab 40 werden farbig angezeigt
         const colorExpressions = {
-            familien: ['interpolate', ['linear'], ['*', ['get', 'proxy_familien'], 4], 0, 'rgba(0, 124, 255, 0)', 100, 'rgba(0, 124, 255, 0.45)'],
-            yups: ['interpolate', ['linear'], ['+', ['*', ['get', 'proxy_alter_20_39'], 0.83], ['get', 'proxy_singles']], 0, 'rgba(255, 107, 53, 0)', 100, 'rgba(255, 107, 53, 0.45)'],
-            premium: ['interpolate', ['linear'], ['+', ['*', ['get', 'proxy_paare'], 1.6], ['+', ['*', ['get', 'proxy_miete'], 2], ['*', ['get', 'proxy_eigentuemer'], 0.6]]], 0, 'rgba(140, 0, 255, 0)', 100, 'rgba(140, 0, 255, 0.45)'],
-            bestAgers: ['interpolate', ['linear'], ['+', ['*', ['get', 'proxy_alter_60_plus'], 1.4], ['*', ['get', 'proxy_eigentuemer'], 0.6]], 0, 'rgba(0, 196, 106, 0)', 100, 'rgba(0, 196, 106, 0.45)']
+            familien: ['interpolate', ['linear'], ['*', ['get', 'proxy_familien'], 4], 
+                0, 'rgba(0, 124, 255, 0)', 
+                40, 'rgba(0, 124, 255, 0)', 
+                100, 'rgba(0, 124, 255, 0.75)'
+            ],
+            yups: ['interpolate', ['linear'], ['+', ['*', ['get', 'proxy_alter_20_39'], 0.83], ['get', 'proxy_singles']], 
+                0, 'rgba(255, 107, 53, 0)', 
+                40, 'rgba(255, 107, 53, 0)', 
+                100, 'rgba(255, 107, 53, 0.75)'
+            ],
+            premium: ['interpolate', ['linear'], ['+', ['*', ['get', 'proxy_paare'], 1.6], ['+', ['*', ['get', 'proxy_miete'], 2], ['*', ['get', 'proxy_eigentuemer'], 0.6]]], 
+                0, 'rgba(140, 0, 255, 0)', 
+                40, 'rgba(140, 0, 255, 0)', 
+                100, 'rgba(140, 0, 255, 0.75)'
+            ],
+            bestAgers: ['interpolate', ['linear'], ['+', ['*', ['get', 'proxy_alter_60_plus'], 1.4], ['*', ['get', 'proxy_eigentuemer'], 0.6]], 
+                0, 'rgba(0, 196, 106, 0)', 
+                40, 'rgba(0, 196, 106, 0)', 
+                100, 'rgba(0, 196, 106, 0.75)'
+            ]
         };
 
         function calculateScores(props) {
@@ -131,7 +146,6 @@
         map.on('load', () => {
             map.addSource('zensus-daten', { type: 'vector', url: "pmtiles://" + PMTILES_URL });
 
-            // Layer wieder auf 'fill' zurückgesetzt und Outline unsichtbar gemacht
             map.addLayer({
                 'id': 'gitter-layer',
                 'type': 'fill',
@@ -139,7 +153,7 @@
                 'source-layer': 'duesseldorf_kaufkraft_final',
                 'paint': {
                     'fill-color': colorExpressions.familien,
-                    'fill-outline-color': 'rgba(0,0,0,0)' // Kanten komplett unsichtbar
+                    'fill-outline-color': '#111' // LED-Pixel-Effekt (schwarze Kante)
                 }
             });
 
@@ -155,7 +169,6 @@
                     buttons.forEach(b => document.getElementById(b.id).className = 'menu-btn');
                     document.getElementById(btnInfo.id).classList.add('btn-active', btnInfo.type);
                     
-                    // Schaltet sanft die Flächenfarbe um
                     map.setPaintProperty('gitter-layer', 'fill-color', colorExpressions[btnInfo.type]);
                 });
             });
