@@ -101,25 +101,16 @@
             container: 'map',
             style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
             center: [6.7828, 51.2277], 
-            zoom: 11.5,
-            pitch: 55, // NEU: Karte von Beginn an kippen
-            bearing: -20 // NEU: Leicht eindrehen für bessere 3D-Wirkung
+            zoom: 11
+            // pitch und bearing wurden entfernt, Karte ist wieder flach
         });
 
-        // 1. Farben für 3D berechnen
+        // Frosted Glass Farben: Maximale Deckkraft auf 0.45 reduziert für sanftes Leuchten
         const colorExpressions = {
-            familien: ['interpolate', ['linear'], ['*', ['get', 'proxy_familien'], 4], 0, 'rgba(0, 124, 255, 0.1)', 100, 'rgba(0, 124, 255, 0.9)'],
-            yups: ['interpolate', ['linear'], ['+', ['*', ['get', 'proxy_alter_20_39'], 0.83], ['get', 'proxy_singles']], 0, 'rgba(255, 107, 53, 0.1)', 100, 'rgba(255, 107, 53, 0.9)'],
-            premium: ['interpolate', ['linear'], ['+', ['*', ['get', 'proxy_paare'], 1.6], ['+', ['*', ['get', 'proxy_miete'], 2], ['*', ['get', 'proxy_eigentuemer'], 0.6]]], 0, 'rgba(140, 0, 255, 0.1)', 100, 'rgba(140, 0, 255, 0.9)'],
-            bestAgers: ['interpolate', ['linear'], ['+', ['*', ['get', 'proxy_alter_60_plus'], 1.4], ['*', ['get', 'proxy_eigentuemer'], 0.6]], 0, 'rgba(0, 196, 106, 0.1)', 100, 'rgba(0, 196, 106, 0.9)']
-        };
-
-        // 2. NEU: Höhen für 3D berechnen (in Metern)
-        const heightExpressions = {
-            familien: ['interpolate', ['linear'], ['*', ['get', 'proxy_familien'], 4], 0, 0, 100, 1500],
-            yups: ['interpolate', ['linear'], ['+', ['*', ['get', 'proxy_alter_20_39'], 0.83], ['get', 'proxy_singles']], 0, 0, 100, 1500],
-            premium: ['interpolate', ['linear'], ['+', ['*', ['get', 'proxy_paare'], 1.6], ['+', ['*', ['get', 'proxy_miete'], 2], ['*', ['get', 'proxy_eigentuemer'], 0.6]]], 0, 0, 100, 1500],
-            bestAgers: ['interpolate', ['linear'], ['+', ['*', ['get', 'proxy_alter_60_plus'], 1.4], ['*', ['get', 'proxy_eigentuemer'], 0.6]], 0, 0, 100, 1500]
+            familien: ['interpolate', ['linear'], ['*', ['get', 'proxy_familien'], 4], 0, 'rgba(0, 124, 255, 0)', 100, 'rgba(0, 124, 255, 0.45)'],
+            yups: ['interpolate', ['linear'], ['+', ['*', ['get', 'proxy_alter_20_39'], 0.83], ['get', 'proxy_singles']], 0, 'rgba(255, 107, 53, 0)', 100, 'rgba(255, 107, 53, 0.45)'],
+            premium: ['interpolate', ['linear'], ['+', ['*', ['get', 'proxy_paare'], 1.6], ['+', ['*', ['get', 'proxy_miete'], 2], ['*', ['get', 'proxy_eigentuemer'], 0.6]]], 0, 'rgba(140, 0, 255, 0)', 100, 'rgba(140, 0, 255, 0.45)'],
+            bestAgers: ['interpolate', ['linear'], ['+', ['*', ['get', 'proxy_alter_60_plus'], 1.4], ['*', ['get', 'proxy_eigentuemer'], 0.6]], 0, 'rgba(0, 196, 106, 0)', 100, 'rgba(0, 196, 106, 0.45)']
         };
 
         function calculateScores(props) {
@@ -140,16 +131,15 @@
         map.on('load', () => {
             map.addSource('zensus-daten', { type: 'vector', url: "pmtiles://" + PMTILES_URL });
 
-            // NEU: Aus 'fill' wird 'fill-extrusion'
+            // Layer wieder auf 'fill' zurückgesetzt und Outline unsichtbar gemacht
             map.addLayer({
                 'id': 'gitter-layer',
-                'type': 'fill-extrusion',
+                'type': 'fill',
                 'source': 'zensus-daten',
                 'source-layer': 'duesseldorf_kaufkraft_final',
                 'paint': {
-                    'fill-extrusion-color': colorExpressions.familien,
-                    'fill-extrusion-height': heightExpressions.familien,
-                    'fill-extrusion-opacity': 0.85
+                    'fill-color': colorExpressions.familien,
+                    'fill-outline-color': 'rgba(0,0,0,0)' // Kanten komplett unsichtbar
                 }
             });
 
@@ -165,9 +155,8 @@
                     buttons.forEach(b => document.getElementById(b.id).className = 'menu-btn');
                     document.getElementById(btnInfo.id).classList.add('btn-active', btnInfo.type);
                     
-                    // Wir tauschen beim Klick jetzt Farbe UND Höhe aus
-                    map.setPaintProperty('gitter-layer', 'fill-extrusion-color', colorExpressions[btnInfo.type]);
-                    map.setPaintProperty('gitter-layer', 'fill-extrusion-height', heightExpressions[btnInfo.type]);
+                    // Schaltet sanft die Flächenfarbe um
+                    map.setPaintProperty('gitter-layer', 'fill-color', colorExpressions[btnInfo.type]);
                 });
             });
 
