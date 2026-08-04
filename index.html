@@ -9,8 +9,8 @@
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet">
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
     
-    <!-- PMTiles Library (Der Übersetzer) -->
-    <script src="https://unpkg.com/pmtiles@3.0.6/dist/index.js"></script>
+    <!-- PMTiles Library (Der korrekte Übersetzer für den Browser) -->
+    <script src="https://unpkg.com/pmtiles@3.0.6/dist/pmtiles.js"></script>
 
     <style>
         body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
@@ -23,17 +23,16 @@
     <div id="map"></div>
 
     <script>
-        // 1. PMTiles Protokoll registrieren (WICHTIGSTES LEARNING)
+        // 1. PMTiles Protokoll registrieren
         let protocol = new pmtiles.Protocol();
         maplibregl.addProtocol("pmtiles", protocol.tile);
 
-        // 2. Den perfekten Pfad zur PMTiles-Datei berechnen (verhindert CORS-Fehler)
+        // 2. Den perfekten Pfad zur PMTiles-Datei berechnen
         let PMTILES_URL = new URL("duesseldorf_kaufkraft_final.pmtiles", window.location.href).href;
 
         // 3. Die Karte aufbauen
         const map = new maplibregl.Map({
             container: 'map',
-            // Kostenlose Hintergrundkarte ohne API-Key
             style: {
                 'version': 8,
                 'sources': {
@@ -81,7 +80,7 @@
                 }
             });
 
-            // C. Pop-up beim Klicken hinzufügen (Deine Daten-Kontrolle!)
+            // C. Pop-up beim Klicken hinzufügen
             map.on('click', 'gitter-layer', (e) => {
                 const props = e.features[0].properties;
                 new maplibregl.Popup()
@@ -98,7 +97,7 @@
                     .addTo(map);
             });
 
-            // Mauszeiger zu einem "Finger" machen, wenn man über ein Kästchen fährt
+            // Mauszeiger zu einem "Finger" machen
             map.on('mouseenter', 'gitter-layer', () => {
                 map.getCanvas().style.cursor = 'pointer';
             });
