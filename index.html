@@ -16,36 +16,72 @@
         body { margin: 0; padding: 0; font-family: 'Helvetica Neue', Arial, sans-serif; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; }
         
-        /* Schickeres Design für das neue Scoring-Pop-up */
-        .maplibregl-popup-content { 
-            padding: 20px; 
-            border-radius: 12px; 
+        /* Das neue, schwebende UI-Menü */
+        #menu {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 12px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.15);
-            width: 220px;
+            z-index: 1; /* Damit es immer über der Karte schwebt */
+            width: 200px;
         }
-        .score-row {
-            display: flex;
-            justify-content: space-between;
+        #menu h2 {
+            margin: 0 0 15px 0;
+            font-size: 16px;
+            color: #333;
+        }
+        .menu-btn {
+            display: block;
+            width: 100%;
+            padding: 10px;
             margin-bottom: 8px;
+            border: none;
+            border-radius: 6px;
+            background-color: #f0f0f0;
+            color: #333;
             font-size: 14px;
-        }
-        .score-value {
             font-weight: bold;
-            color: #007cff;
+            cursor: pointer;
+            text-align: left;
+            transition: all 0.2s ease; /* Weicher Farbwechsel */
         }
+        .menu-btn:hover { background-color: #e0e0e0; }
+        
+        /* Aktive Button-Farben */
+        .btn-active.familien { background-color: #007cff; color: white; }
+        .btn-active.yups { background-color: #ff6b35; color: white; }
+        .btn-active.premium { background-color: #8c00ff; color: white; }
+        .btn-active.bestAgers { background-color: #00c46a; color: white; }
+
+        /* Pop-up Design */
+        .maplibregl-popup-content { 
+            padding: 20px; border-radius: 12px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15); width: 220px;
+        }
+        .score-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; }
+        .score-value { font-weight: bold; color: #333; }
     </style>
 </head>
 <body>
     <div id="map"></div>
+    
+    <!-- Die neuen Steuerungselemente (Buttons) -->
+    <div id="menu">
+        <h2>Zielgruppen</h2>
+        <button id="btn-familien" class="menu-btn btn-active familien">Familien</button>
+        <button id="btn-yups" class="menu-btn">YUPs (20-39)</button>
+        <button id="btn-premium" class="menu-btn">Premium / DINKs</button>
+        <button id="btn-bestAgers" class="menu-btn">Best Agers (60+)</button>
+    </div>
 
     <script>
-        // 1. PMTiles Protokoll registrieren
         let protocol = new pmtiles.Protocol();
         maplibregl.addProtocol("pmtiles", protocol.tile);
-
         let PMTILES_URL = new URL("duesseldorf_kaufkraft_final.pmtiles", window.location.href).href;
 
-        // 2. Karte aufbauen
         const map = new maplibregl.Map({
             container: 'map',
             style: {
@@ -58,40 +94,39 @@
                         'attribution': '&copy; OpenStreetMap'
                     }
                 },
-                'layers': [{
-                    'id': 'osm-tiles',
-                    'type': 'raster',
-                    'source': 'osm'
-                }]
+                'layers': [{ 'id': 'osm-tiles', 'type': 'raster', 'source': 'osm' }]
             },
-            center: [6.7828, 51.2277], // Düsseldorf
+            center: [6.7828, 51.2277], 
             zoom: 11
         });
 
-        // ==========================================
-        // NEU: DAS GEHIRN (Scoring-Logik)
-        // ==========================================
+        // Die mathematischen MapLibre-Formeln für unsere 4 Heatmap-Farben
+        const paintExpressions = {
+            familien: [
+                'interpolate', ['linear'], ['*', ['get', 'proxy_familien'], 4],
+                0, 'rgba(200, 200, 200, 0.1)', 100, 'rgba(0, 124, 255, 0.85)' // Blau
+            ],
+            yups: [
+                'interpolate', ['linear'], ['+', ['*', ['get', 'proxy_alter_20_39'], 0.83], ['get', 'proxy_singles']],
+                0, 'rgba(200, 200, 200, 0.1)', 100, 'rgba(255, 107, 53, 0.85)' // Orange/Koralle
+            ],
+            premium: [
+                'interpolate', ['linear'], ['+', ['*', ['get', 'proxy_paare'], 1.6], ['+', ['*', ['get', 'proxy_miete'], 2], ['*', ['get', 'proxy_eigentuemer'], 0.6]]],
+                0, 'rgba(200, 200, 200, 0.1)', 100, 'rgba(140, 0, 255, 0.85)' // Violett
+            ],
+            bestAgers: [
+                'interpolate', ['linear'], ['+', ['*', ['get', 'proxy_alter_60_plus'], 1.4], ['*', ['get', 'proxy_eigentuemer'], 0.6]],
+                0, 'rgba(200, 200, 200, 0.1)', 100, 'rgba(0, 196, 106, 0.85)' // Smaragdgrün
+            ]
+        };
+
         function calculateScores(props) {
-            // Hilfsfunktion: Begrenzt Werte immer auf maximal 100 und minimal 0
             const cap = (val) => Math.min(Math.max(Math.round(val), 0), 100);
-
-            // 1. Familien (Fokus auf reine Anzahl von Familien)
-            // Annahme: 25 Familien in einem 100m Gitter = 100% Hotspot
             let scoreFamilien = (props.proxy_familien / 25) * 100; 
-            
-            // 2. YUPs (Young Urban Professionals)
-            // Mix aus jungen Leuten (20-39) und Singles
             let scoreYUPs = (props.proxy_alter_20_39 / 60) * 50 + (props.proxy_singles / 50) * 50;
-
-            // 3. Premium / DINKs (Double Income No Kids)
-            // Mix aus Paaren, hohen Mieten (ab 15€/qm = max) und Eigentumsquote
             let scorePremium = (props.proxy_paare / 25) * 40 + (props.proxy_miete / 15) * 30 + (props.proxy_eigentuemer / 50) * 30;
-
-            // 4. Best Agers (60+ Jahre)
-            // Mix aus älterer Bevölkerung und Eigentum
             let scoreBestAgers = (props.proxy_alter_60_plus / 50) * 70 + (props.proxy_eigentuemer / 50) * 30;
 
-            // Falls Werte nicht vorhanden sind (NaN), setzen wir sie auf 0
             return {
                 familien: cap(scoreFamilien) || 0,
                 yups: cap(scoreYUPs) || 0,
@@ -100,55 +135,60 @@
             };
         }
 
-        // 3. Daten laden
         map.on('load', () => {
-            map.addSource('zensus-daten', {
-                type: 'vector',
-                url: "pmtiles://" + PMTILES_URL
-            });
+            map.addSource('zensus-daten', { type: 'vector', url: "pmtiles://" + PMTILES_URL });
 
-            // Gitter zeichnen (Farbe vorerst noch starr auf Familien)
+            // Layer zeichnen (startet standardmäßig mit Familien-Einstellung)
             map.addLayer({
                 'id': 'gitter-layer',
                 'type': 'fill',
                 'source': 'zensus-daten',
                 'source-layer': 'duesseldorf_kaufkraft_final',
                 'paint': {
-                    'fill-color': [
-                        'interpolate', ['linear'], ['get', 'proxy_familien'],
-                        0, 'rgba(200, 200, 200, 0.1)', 
-                        50, 'rgba(0, 100, 255, 0.8)'
-                    ],
-                    'fill-outline-color': 'rgba(255,255,255,0.4)'
+                    'fill-color': paintExpressions.familien,
+                    'fill-outline-color': 'rgba(255,255,255,0.2)'
                 }
             });
 
-            // 4. Das neue Pop-up (Zeigt ab sofort die Cluster-Scores!)
+            // ==========================================
+            // NEU: BUTTON-KLICKS VERKABELN
+            // ==========================================
+            const buttons = [
+                { id: 'btn-familien', type: 'familien' },
+                { id: 'btn-yups', type: 'yups' },
+                { id: 'btn-premium', type: 'premium' },
+                { id: 'btn-bestAgers', type: 'bestAgers' }
+            ];
+
+            buttons.forEach(btnInfo => {
+                document.getElementById(btnInfo.id).addEventListener('click', () => {
+                    // 1. Alle Buttons zurücksetzen (grau machen)
+                    buttons.forEach(b => {
+                        document.getElementById(b.id).className = 'menu-btn';
+                    });
+                    
+                    // 2. Den angeklickten Button farbig machen
+                    const clickedBtn = document.getElementById(btnInfo.id);
+                    clickedBtn.classList.add('btn-active', btnInfo.type);
+
+                    // 3. Die Karte in Echtzeit umfärben!
+                    map.setPaintProperty('gitter-layer', 'fill-color', paintExpressions[btnInfo.type]);
+                });
+            });
+
+            // Pop-up aufrufen
             map.on('click', 'gitter-layer', (e) => {
                 const props = e.features[0].properties;
-                const scores = calculateScores(props); // Gehirn aufrufen
+                const scores = calculateScores(props);
 
                 new maplibregl.Popup()
                     .setLngLat(e.lngLat)
                     .setHTML(`
                         <h3 style="margin-top:0; border-bottom: 1px solid #ddd; padding-bottom: 8px;">Zielgruppen-Score</h3>
-                        
-                        <div class="score-row">
-                            <span>Familien:</span> 
-                            <span class="score-value">${scores.familien} / 100</span>
-                        </div>
-                        <div class="score-row">
-                            <span>YUPs:</span> 
-                            <span class="score-value">${scores.yups} / 100</span>
-                        </div>
-                        <div class="score-row">
-                            <span>Premium (DINKs):</span> 
-                            <span class="score-value">${scores.premium} / 100</span>
-                        </div>
-                        <div class="score-row">
-                            <span>Best Agers:</span> 
-                            <span class="score-value">${scores.bestAgers} / 100</span>
-                        </div>
+                        <div class="score-row"><span>Familien:</span> <span class="score-value">${scores.familien}</span></div>
+                        <div class="score-row"><span>YUPs:</span> <span class="score-value">${scores.yups}</span></div>
+                        <div class="score-row"><span>Premium (DINKs):</span> <span class="score-value">${scores.premium}</span></div>
+                        <div class="score-row"><span>Best Agers:</span> <span class="score-value">${scores.bestAgers}</span></div>
                     `)
                     .addTo(map);
             });
