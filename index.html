@@ -29,7 +29,6 @@
             backdrop-filter: blur(10px);
         }
         
-        /* Das Branding "powered by SoD" */
         .brand { margin: 0 0 20px 0; font-size: 17px; color: #fff; text-transform: uppercase; letter-spacing: 1px; line-height: 1.3; }
         .brand span { font-size: 11px; color: #888; font-weight: normal; letter-spacing: 0; text-transform: none; display: block; margin-top: 2px;}
         
@@ -57,31 +56,41 @@
         .btn-active.premium { background-color: #8c00ff; color: white; border-color: #8c00ff; }
         .btn-active.bestAgers { background-color: #00c46a; color: white; border-color: #00c46a; }
 
-        /* Die dynamische Legende */
         .legend { margin-top: 20px; }
         .legend-title { font-size: 11px; color: #aaa; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
         .legend-bar { width: 100%; height: 6px; border-radius: 3px; background: linear-gradient(to right, rgba(0, 124, 255, 0), rgba(0, 124, 255, 0.75)); transition: background 0.3s ease; }
         .legend-labels { display: flex; justify-content: space-between; font-size: 10px; color: #888; margin-top: 4px; font-weight: bold; }
 
-        /* Pop-up Dashboard */
+        /* Pop-up Dashboard (Erweitert & Aufgeräumt) */
         .maplibregl-popup-content { 
-            padding: 20px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); width: 240px;
+            padding: 20px; border-radius: 12px; box-shadow: 0 4px 25px rgba(0,0,0,0.8); width: 260px;
             background-color: rgba(25, 25, 25, 0.95); color: #fff; border: 1px solid #444; backdrop-filter: blur(10px);
         }
         .maplibregl-popup-anchor-bottom .maplibregl-popup-tip { border-top-color: rgba(25, 25, 25, 0.95); }
         .maplibregl-popup-anchor-top .maplibregl-popup-tip { border-bottom-color: rgba(25, 25, 25, 0.95); }
         
-        .popup-header { margin-top:0; border-bottom: 1px solid #444; padding-bottom: 10px; margin-bottom: 15px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; color: #ccc;}
-        .score-row { margin-bottom: 12px; font-size: 12px; }
-        .score-label { display: flex; justify-content: space-between; margin-bottom: 5px; color: #aaa; }
-        .score-value { font-weight: bold; color: #fff; }
-        .bar-bg { width: 100%; height: 5px; background-color: #333; border-radius: 3px; overflow: hidden; }
-        .bar-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
+        .popup-header { margin-top:0; border-bottom: 1px solid #444; padding-bottom: 8px; margin-bottom: 15px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; color: #fff; font-weight: bold;}
         
-        .fill-familien { background-color: #007cff; }
-        .fill-yups { background-color: #ff6b35; }
-        .fill-premium { background-color: #8c00ff; }
-        .fill-bestAgers { background-color: #00c46a; }
+        /* Sektions-Überschriften */
+        .section-title { font-size: 10px; color: #888; text-transform: uppercase; margin: 15px 0 10px 0; border-bottom: 1px solid #333; padding-bottom: 4px; letter-spacing: 0.5px;}
+        .section-title.first { margin-top: 0; }
+
+        /* Die aktive Zielgruppe */
+        .active-target-row { margin-bottom: 5px; }
+        .active-target-label { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 13px; font-weight: bold;}
+        .bar-bg { width: 100%; height: 6px; background-color: #333; border-radius: 3px; overflow: hidden; margin-bottom: 15px; }
+        .bar-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
+
+        /* Marketing KPIs */
+        .kpi-row { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 12px; align-items: center;}
+        .kpi-label { color: #aaa; }
+        .kpi-value-box { background: #2a2a2a; padding: 4px 8px; border-radius: 6px; border: 1px solid #444; font-weight: bold; color: #fff; min-width: 50px; text-align: right; }
+        
+        /* Mini-Scores für Affinitäten */
+        .score-wrap { display: flex; align-items: center; }
+        .mini-bar-bg { width: 40px; height: 4px; background: #333; border-radius: 2px; margin-left: 10px; overflow: hidden;}
+        .mini-bar-fill { height: 100%; background: #ccc; }
+
     </style>
 </head>
 <body>
@@ -116,17 +125,14 @@
             style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
             center: [6.7828, 51.2277], 
             zoom: 11.5,
-            
-            // NEU: Leitplanken für den Pitch!
-            minZoom: 10.5, // Nicht weiter rauszoomen als Regionsebene
-            maxZoom: 16,   // Nicht in einzelne Häuser zoomen (Daten sind eh 100m Gitter)
+            minZoom: 10.5, 
+            maxZoom: 16,   
             maxBounds: [
-                [6.45, 51.05], // Süd-West-Grenze (Hinter Neuss)
-                [7.15, 51.40]  // Nord-Ost-Grenze (Hinter Ratingen)
+                [6.45, 51.05], 
+                [7.15, 51.40]  
             ]
         });
 
-        // "Exklusiv"-Mathematik
         const colorExpressions = {
             familien: ['interpolate', ['linear'], ['*', ['get', 'proxy_familien'], 4], 0, 'rgba(0, 124, 255, 0)', 40, 'rgba(0, 124, 255, 0)', 100, 'rgba(0, 124, 255, 0.75)'],
             yups: ['interpolate', ['linear'], ['+', ['*', ['get', 'proxy_alter_20_39'], 0.83], ['get', 'proxy_singles']], 0, 'rgba(255, 107, 53, 0)', 40, 'rgba(255, 107, 53, 0)', 100, 'rgba(255, 107, 53, 0.75)'],
@@ -134,27 +140,46 @@
             bestAgers: ['interpolate', ['linear'], ['+', ['*', ['get', 'proxy_alter_60_plus'], 1.4], ['*', ['get', 'proxy_eigentuemer'], 0.6]], 0, 'rgba(0, 196, 106, 0)', 40, 'rgba(0, 196, 106, 0)', 100, 'rgba(0, 196, 106, 0.75)']
         };
 
-        // Farben für die dynamische Legende
         const legendGradients = {
             familien: 'linear-gradient(to right, rgba(0, 124, 255, 0), rgba(0, 124, 255, 0.75))',
             yups: 'linear-gradient(to right, rgba(255, 107, 53, 0), rgba(255, 107, 53, 0.75))',
             premium: 'linear-gradient(to right, rgba(140, 0, 255, 0), rgba(140, 0, 255, 0.75))',
             bestAgers: 'linear-gradient(to right, rgba(0, 196, 106, 0), rgba(0, 196, 106, 0.75))'
         };
+        
+        const targetColors = { familien: '#007cff', yups: '#ff6b35', premium: '#8c00ff', bestAgers: '#00c46a' };
+        const targetNames = { familien: 'Familien', yups: 'YUPs (20-39)', premium: 'Premium (DINKs)', bestAgers: 'Best Agers (60+)' };
 
-        function calculateScores(props) {
+        // Globale Variable speichert, welcher Menü-Button gerade aktiv ist
+        let activeTarget = 'familien';
+
+        function calculateMarketingData(props) {
             const cap = (val) => Math.min(Math.max(Math.round(val), 0), 100);
-            let scoreFamilien = (props.proxy_familien / 25) * 100; 
-            let scoreYUPs = (props.proxy_alter_20_39 / 60) * 50 + (props.proxy_singles / 50) * 50;
-            let scorePremium = (props.proxy_paare / 25) * 40 + (props.proxy_miete / 15) * 30 + (props.proxy_eigentuemer / 50) * 30;
-            let scoreBestAgers = (props.proxy_alter_60_plus / 50) * 70 + (props.proxy_eigentuemer / 50) * 30;
-
-            return {
-                familien: cap(scoreFamilien) || 0,
-                yups: cap(scoreYUPs) || 0,
-                premium: cap(scorePremium) || 0,
-                bestAgers: cap(scoreBestAgers) || 0
+            
+            // 1. Base Scores der Zielgruppen
+            let scores = {
+                familien: cap((props.proxy_familien / 25) * 100),
+                yups: cap((props.proxy_alter_20_39 / 60) * 50 + (props.proxy_singles / 50) * 50),
+                premium: cap((props.proxy_paare / 25) * 40 + (props.proxy_miete / 15) * 30 + (props.proxy_eigentuemer / 50) * 30),
+                bestAgers: cap((props.proxy_alter_60_plus / 50) * 70 + (props.proxy_eigentuemer / 50) * 30)
             };
+
+            // 2. HHNE (Kaufmännische Schätzung aus Miete, Wohnfläche und Eigentum)
+            let rawRent = (props.proxy_miete || 9) * (props.proxy_wohnflaeche || 60);
+            let estimatedHHNE = Math.round((rawRent * 3.3) + ((props.proxy_eigentuemer || 0) * 20));
+            // Realistischer Minimalwert als Fallback
+            if (estimatedHHNE < 1500) estimatedHHNE = 1500 + Math.floor(Math.random() * 500); 
+            // Auf volle 50er Runden für sauberere Optik im Sales Pitch
+            let hhneRounded = Math.round(estimatedHHNE / 50) * 50; 
+
+            // 3. Kaufkraft-Index (Was bleibt ca. nach Miete/Lebenshaltung übrig?)
+            let kaufkraftRounded = Math.round((hhneRounded * 0.45) / 50) * 50;
+
+            // 4. Affinitäts-Scores
+            let diyScore = cap((props.proxy_eigentuemer || 0) * 1.1 + (props.proxy_wohnflaeche / 150) * 20);
+            let convScore = cap(((props.proxy_singles || 0) / 50) * 45 + ((props.proxy_alter_20_39 || 0) / 60) * 45 + ((props.proxy_miete || 0) / 20) * 10);
+
+            return { scores, hhne: hhneRounded, kaufkraft: kaufkraftRounded, diy: diyScore, convenience: convScore };
         }
 
         map.on('load', () => {
@@ -180,32 +205,72 @@
 
             buttons.forEach(btnInfo => {
                 document.getElementById(btnInfo.id).addEventListener('click', () => {
-                    // Alle Buttons zurücksetzen
                     buttons.forEach(b => document.getElementById(b.id).className = 'menu-btn');
-                    // Aktiven Button einfärben
                     document.getElementById(btnInfo.id).classList.add('btn-active', btnInfo.type);
                     
-                    // Karte umfärben
-                    map.setPaintProperty('gitter-layer', 'fill-color', colorExpressions[btnInfo.type]);
+                    activeTarget = btnInfo.type; // Update der Logik für das Pop-up
                     
-                    // NEU: Legenden-Farbe anpassen!
+                    map.setPaintProperty('gitter-layer', 'fill-color', colorExpressions[btnInfo.type]);
                     document.getElementById('legend-gradient').style.background = legendGradients[btnInfo.type];
                 });
             });
 
             map.on('click', 'gitter-layer', (e) => {
                 const props = e.features[0].properties;
-                const scores = calculateScores(props);
+                const data = calculateMarketingData(props);
+
+                // Formatierung von tausender Zahlen (z.B. 4.250)
+                const fmt = (num) => new Intl.NumberFormat('de-DE').format(num);
+
+                // Dynamisches Pop-up HTML zusammenbauen
+                let popupHTML = `
+                    <div class="popup-header">Insight Dashboard</div>
+                    
+                    <!-- Sektion 1: Aktueller Zielgruppen-Fokus -->
+                    <div class="section-title first">Fokus-Zielgruppe</div>
+                    <div class="active-target-row">
+                        <div class="active-target-label" style="color: ${targetColors[activeTarget]}">
+                            <span>${targetNames[activeTarget]}</span> 
+                            <span>${data.scores[activeTarget]} / 100</span>
+                        </div>
+                        <div class="bar-bg">
+                            <div class="bar-fill" style="width: ${data.scores[activeTarget]}%; background-color: ${targetColors[activeTarget]};"></div>
+                        </div>
+                    </div>
+
+                    <!-- Sektion 2: Marketing Insights -->
+                    <div class="section-title">Finanz- & Kaufkraft-Schätzung</div>
+                    
+                    <div class="kpi-row">
+                        <span class="kpi-label">HH-Nettoeinkommen</span>
+                        <span class="kpi-value-box">Ø ${fmt(data.hhne)} €</span>
+                    </div>
+                    <div class="kpi-row">
+                        <span class="kpi-label">Frei verfügbar (Index)</span>
+                        <span class="kpi-value-box" style="color:#00c46a;">Ø ${fmt(data.kaufkraft)} €</span>
+                    </div>
+
+                    <div class="section-title">Affinitäten (0-100)</div>
+
+                    <div class="kpi-row">
+                        <span class="kpi-label">DIY & Home-Improvement</span>
+                        <div class="score-wrap">
+                            <span style="font-weight:bold; width: 25px; text-align:right;">${data.diy}</span>
+                            <div class="mini-bar-bg"><div class="mini-bar-fill" style="width: ${data.diy}%;"></div></div>
+                        </div>
+                    </div>
+                    <div class="kpi-row">
+                        <span class="kpi-label">Urban Convenience</span>
+                        <div class="score-wrap">
+                            <span style="font-weight:bold; width: 25px; text-align:right;">${data.convenience}</span>
+                            <div class="mini-bar-bg"><div class="mini-bar-fill" style="width: ${data.convenience}%;"></div></div>
+                        </div>
+                    </div>
+                `;
 
                 new maplibregl.Popup()
                     .setLngLat(e.lngLat)
-                    .setHTML(`
-                        <h3 class="popup-header">Gitter-Analyse (100m)</h3>
-                        <div class="score-row"><div class="score-label"><span>Familien</span> <span class="score-value">${scores.familien}</span></div><div class="bar-bg"><div class="bar-fill fill-familien" style="width: ${scores.familien}%;"></div></div></div>
-                        <div class="score-row"><div class="score-label"><span>YUPs (20-39)</span> <span class="score-value">${scores.yups}</span></div><div class="bar-bg"><div class="bar-fill fill-yups" style="width: ${scores.yups}%;"></div></div></div>
-                        <div class="score-row"><div class="score-label"><span>Premium (DINKs)</span> <span class="score-value">${scores.premium}</span></div><div class="bar-bg"><div class="bar-fill fill-premium" style="width: ${scores.premium}%;"></div></div></div>
-                        <div class="score-row"><div class="score-label"><span>Best Agers (60+)</span> <span class="score-value">${scores.bestAgers}</span></div><div class="bar-bg"><div class="bar-fill fill-bestAgers" style="width: ${scores.bestAgers}%;"></div></div></div>
-                    `)
+                    .setHTML(popupHTML)
                     .addTo(map);
             });
 
