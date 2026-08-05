@@ -150,13 +150,11 @@
         const targetColors = { familien: '#007cff', yups: '#ff6b35', premium: '#8c00ff', bestAgers: '#00c46a' };
         const targetNames = { familien: 'Familien', yups: 'YUPs (20-39)', premium: 'Premium (DINKs)', bestAgers: 'Best Agers (60+)' };
 
-        // Globale Variable speichert, welcher Menü-Button gerade aktiv ist
         let activeTarget = 'familien';
 
         function calculateMarketingData(props) {
             const cap = (val) => Math.min(Math.max(Math.round(val), 0), 100);
             
-            // 1. Base Scores der Zielgruppen
             let scores = {
                 familien: cap((props.proxy_familien / 25) * 100),
                 yups: cap((props.proxy_alter_20_39 / 60) * 50 + (props.proxy_singles / 50) * 50),
@@ -164,22 +162,28 @@
                 bestAgers: cap((props.proxy_alter_60_plus / 50) * 70 + (props.proxy_eigentuemer / 50) * 30)
             };
 
-            // 2. HHNE (Kaufmännische Schätzung aus Miete, Wohnfläche und Eigentum)
             let rawRent = (props.proxy_miete || 9) * (props.proxy_wohnflaeche || 60);
             let estimatedHHNE = Math.round((rawRent * 3.3) + ((props.proxy_eigentuemer || 0) * 20));
-            // Realistischer Minimalwert als Fallback
             if (estimatedHHNE < 1500) estimatedHHNE = 1500 + Math.floor(Math.random() * 500); 
-            // Auf volle 50er Runden für sauberere Optik im Sales Pitch
             let hhneRounded = Math.round(estimatedHHNE / 50) * 50; 
-
-            // 3. Kaufkraft-Index (Was bleibt ca. nach Miete/Lebenshaltung übrig?)
             let kaufkraftRounded = Math.round((hhneRounded * 0.45) / 50) * 50;
 
-            // 4. Affinitäts-Scores
             let diyScore = cap((props.proxy_eigentuemer || 0) * 1.1 + (props.proxy_wohnflaeche / 150) * 20);
             let convScore = cap(((props.proxy_singles || 0) / 50) * 45 + ((props.proxy_alter_20_39 || 0) / 60) * 45 + ((props.proxy_miete || 0) / 20) * 10);
+            
+            // NEU: Tech & Early Adopters und E-Mobility Scores
+            let techScore = cap(((props.proxy_alter_20_39 || 0) / 60) * 50 + ((props.proxy_singles || 0) / 50) * 40 + ((props.proxy_miete || 0) / 20) * 10);
+            let eMobilityScore = cap(((props.proxy_eigentuemer || 0) / 100) * 50 + ((props.proxy_paare || 0) / 25) * 30 + ((props.proxy_familien || 0) / 25) * 20);
 
-            return { scores, hhne: hhneRounded, kaufkraft: kaufkraftRounded, diy: diyScore, convenience: convScore };
+            return { 
+                scores, 
+                hhne: hhneRounded, 
+                kaufkraft: kaufkraftRounded, 
+                diy: diyScore, 
+                convenience: convScore,
+                tech: techScore,
+                emobility: eMobilityScore
+            };
         }
 
         map.on('load', () => {
@@ -208,7 +212,7 @@
                     buttons.forEach(b => document.getElementById(b.id).className = 'menu-btn');
                     document.getElementById(btnInfo.id).classList.add('btn-active', btnInfo.type);
                     
-                    activeTarget = btnInfo.type; // Update der Logik für das Pop-up
+                    activeTarget = btnInfo.type;
                     
                     map.setPaintProperty('gitter-layer', 'fill-color', colorExpressions[btnInfo.type]);
                     document.getElementById('legend-gradient').style.background = legendGradients[btnInfo.type];
@@ -218,11 +222,8 @@
             map.on('click', 'gitter-layer', (e) => {
                 const props = e.features[0].properties;
                 const data = calculateMarketingData(props);
-
-                // Formatierung von tausender Zahlen (z.B. 4.250)
                 const fmt = (num) => new Intl.NumberFormat('de-DE').format(num);
 
-                // Dynamisches Pop-up HTML zusammenbauen
                 let popupHTML = `
                     <div class="popup-header">Insight Dashboard</div>
                     
@@ -239,21 +240,21 @@
                     </div>
 
                     <!-- Sektion 2: Marketing Insights -->
-                    <div class="section-title">Finanz- & Kaufkraft-Schätzung</div>
+                    <div class="section-title">Finanz- & Kaufkraft-Index</div>
                     
                     <div class="kpi-row">
                         <span class="kpi-label">HH-Nettoeinkommen</span>
                         <span class="kpi-value-box">Ø ${fmt(data.hhne)} €</span>
                     </div>
                     <div class="kpi-row">
-                        <span class="kpi-label">Frei verfügbar (Index)</span>
+                        <span class="kpi-label">Frei verfügbar (Kaufkraft)</span>
                         <span class="kpi-value-box" style="color:#00c46a;">Ø ${fmt(data.kaufkraft)} €</span>
                     </div>
 
                     <div class="section-title">Affinitäten (0-100)</div>
 
                     <div class="kpi-row">
-                        <span class="kpi-label">DIY & Home-Improvement</span>
+                        <span class="kpi-label">Home-Improvement</span>
                         <div class="score-wrap">
                             <span style="font-weight:bold; width: 25px; text-align:right;">${data.diy}</span>
                             <div class="mini-bar-bg"><div class="mini-bar-fill" style="width: ${data.diy}%;"></div></div>
@@ -264,6 +265,20 @@
                         <div class="score-wrap">
                             <span style="font-weight:bold; width: 25px; text-align:right;">${data.convenience}</span>
                             <div class="mini-bar-bg"><div class="mini-bar-fill" style="width: ${data.convenience}%;"></div></div>
+                        </div>
+                    </div>
+                    <div class="kpi-row">
+                        <span class="kpi-label">Tech & Early Adopters</span>
+                        <div class="score-wrap">
+                            <span style="font-weight:bold; width: 25px; text-align:right;">${data.tech}</span>
+                            <div class="mini-bar-bg"><div class="mini-bar-fill" style="width: ${data.tech}%;"></div></div>
+                        </div>
+                    </div>
+                    <div class="kpi-row">
+                        <span class="kpi-label">E-Mobility & Drive</span>
+                        <div class="score-wrap">
+                            <span style="font-weight:bold; width: 25px; text-align:right;">${data.emobility}</span>
+                            <div class="mini-bar-bg"><div class="mini-bar-fill" style="width: ${data.emobility}%;"></div></div>
                         </div>
                     </div>
                 `;
