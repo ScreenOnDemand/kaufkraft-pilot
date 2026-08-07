@@ -155,7 +155,7 @@
         const targetNames = { familien: 'Familien', yups: 'YUPs (20-39)', premium: 'Premium (DINKs)', bestAgers: 'Best Agers (60+)' };
 
         let activeTarget = 'familien';
-        let plzVisible = false; // Status für das PLZ-Overlay
+        let plzVisible = false;
 
         function calculateMarketingData(props) {
             const cap = (val) => Math.min(Math.max(Math.round(val || 0), 0), 100);
@@ -215,9 +215,10 @@
             });
 
             // 2. NEU: PLZ-Daten über Live-API (Opendatasoft) laden
+            // HIER WAR DER FEHLER: "data" statt "url" muss bei GeoJSON verwendet werden.
             map.addSource('plz-daten', {
                 'type': 'geojson',
-                'url': 'https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/georef-germany-postleitzahl/exports/geojson?where=krs_name%3D%22D%C3%BCsseldorf%22'
+                'data': 'https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/georef-germany-postleitzahl/exports/geojson?where=krs_name%3D%22D%C3%BCsseldorf%22'
             });
 
             // Layer für die PLZ-Grenzen
