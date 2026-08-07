@@ -8,8 +8,9 @@
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet">
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
     <script src="https://unpkg.com/pmtiles@3.0.6/dist/pmtiles.js"></script>
-    <!-- NEU: Übersetzer für die stabilen OpenStreetMap Daten -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/osmtogeojson/3.0.0-beta.4/osmtogeojson.min.js"></script>
+    
+    <!-- FIX: Die korrekte, funktionierende URL für osmtogeojson -->
+    <script src="https://unpkg.com/osmtogeojson@3.0.0-beta.5/osmtogeojson.js"></script>
 
     <style>
         body { margin: 0; padding: 0; font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #111; }
@@ -231,7 +232,7 @@
                 'source': 'plz-daten',
                 'layout': {
                     'visibility': 'none', 
-                    'text-field': ['get', 'postal_code'], // OSM speichert die PLZ unter "postal_code"
+                    'text-field': ['get', 'postal_code'], 
                     'text-size': 14
                 },
                 'paint': {
@@ -261,14 +262,13 @@
                 });
             });
 
-            // NEU: Live-Fetch von OpenStreetMap (Overpass API)
+            // Live-Fetch von OpenStreetMap (Overpass API)
             document.getElementById('btn-toggle-plz').addEventListener('click', async (e) => {
                 plzVisible = !plzVisible;
                 
                 if (plzVisible && !plzLoaded) {
                     e.target.innerText = 'Lade Live-Daten (OSM)...';
                     try {
-                        // Zieht präzise alle PLZ im Raum Düsseldorf (402xx bis 406xx) aus OpenStreetMap
                         const query = '[out:json];relation["boundary"="postal_code"]["postal_code"~"^402|^403|^404|^405|^406"];out body;>;out skel qt;';
                         const url = 'https://overpass-api.de/api/interpreter?data=' + encodeURIComponent(query);
                         
@@ -276,8 +276,6 @@
                         if (!response.ok) throw new Error("Netzwerkfehler");
                         
                         const data = await response.json();
-                        
-                        // Das Zauber-Tool: Übersetzt die rohen OSM-Daten sofort in GeoJSON
                         const geojson = osmtogeojson(data);
                         
                         map.getSource('plz-daten').setData(geojson);
