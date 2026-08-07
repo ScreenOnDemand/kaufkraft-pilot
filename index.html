@@ -8,9 +8,6 @@
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet">
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
     <script src="https://unpkg.com/pmtiles@3.0.6/dist/pmtiles.js"></script>
-    
-    <!-- FIX: Die korrekte, funktionierende URL für osmtogeojson -->
-    <script src="https://unpkg.com/osmtogeojson@3.0.0-beta.5/osmtogeojson.js"></script>
 
     <style>
         body { margin: 0; padding: 0; font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #111; }
@@ -232,7 +229,7 @@
                 'source': 'plz-daten',
                 'layout': {
                     'visibility': 'none', 
-                    'text-field': ['get', 'postal_code'], 
+                    'text-field': ['get', 'plz'], // Der exakte Name der Variable im statischen File
                     'text-size': 14
                 },
                 'paint': {
@@ -262,27 +259,32 @@
                 });
             });
 
-            // Live-Fetch von OpenStreetMap (Overpass API)
+            // KUGELSICHERER FETCH: Wir ziehen eine stabile statische GeoJSON aus dem GitHub CDN
             document.getElementById('btn-toggle-plz').addEventListener('click', async (e) => {
                 plzVisible = !plzVisible;
                 
                 if (plzVisible && !plzLoaded) {
-                    e.target.innerText = 'Lade Live-Daten (OSM)...';
+                    e.target.innerText = 'Lade Archiv-Daten...';
                     try {
-                        const query = '[out:json];relation["boundary"="postal_code"]["postal_code"~"^402|^403|^404|^405|^406"];out body;>;out skel qt;';
-                        const url = 'https://overpass-api.de/api/interpreter?data=' + encodeURIComponent(query);
+                        // Eine verlässliche, statische GitHub-Raw URL mit allen PLZ
+                        const url = 'https://raw.githubusercontent.com/suatoezguer/geodata/master/plz/plz-5stellig.geojson';
                         
                         const response = await fetch(url);
-                        if (!response.ok) throw new Error("Netzwerkfehler");
+                        if (!response.ok) throw new Error("Fehler beim Laden der statischen Datei");
                         
-                        const data = await response.json();
-                        const geojson = osmtogeojson(data);
+                        const rawData = await response.json();
                         
-                        map.getSource('plz-daten').setData(geojson);
+                        // Wir filtern im Browser blitzschnell nur die Gebiete heraus, die mit "40" beginnen
+                        const dusseldorfData = {
+                            type: "FeatureCollection",
+                            features: rawData.features.filter(f => f.properties.plz && f.properties.plz.startsWith("40"))
+                        };
+                        
+                        map.getSource('plz-daten').setData(dusseldorfData);
                         plzLoaded = true;
                     } catch (error) {
-                        console.error("OSM-API Fehler:", error);
-                        e.target.innerText = 'Server aktuell überlastet';
+                        console.error("Daten-Fehler:", error);
+                        e.target.innerText = 'Fehler (Keine Verbindung)';
                         plzVisible = false; 
                         return;
                     }
