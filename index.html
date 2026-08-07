@@ -156,7 +156,6 @@
 
         let activeTarget = 'familien';
         let plzVisible = false;
-        let plzLoaded = false;
 
         function calculateMarketingData(props) {
             const cap = (val) => Math.min(Math.max(Math.round(val || 0), 0), 100);
@@ -210,10 +209,10 @@
                 }
             });
 
-            // 2. PLZ-Daten Source initialisieren (Ausfallsicher: Erstmal leer)
+            // 2. PLZ-Daten direkt über die stabile v2.1 GeoJSON-API laden
             map.addSource('plz-daten', {
                 'type': 'geojson',
-                'data': { type: 'FeatureCollection', features: [] }
+                'data': 'https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/georef-germany-postleitzahl/exports/geojson?where=krs_name%3D%22D%C3%BCsseldorf%22'
             });
 
             // Layer für die PLZ-Grenzen
@@ -221,7 +220,7 @@
                 'id': 'plz-linien',
                 'type': 'line',
                 'source': 'plz-daten',
-                'layout': { 'visibility': 'none' }, // Initial unsichtbar
+                'layout': { 'visibility': 'none' },
                 'paint': {
                     'line-color': '#ffffff',
                     'line-width': 1.5,
@@ -267,40 +266,11 @@
                 });
             });
 
-            // NEU: Ausfallsicherer manueller Fetch für PLZ-Daten beim ersten Klick
-            document.getElementById('btn-toggle-plz').addEventListener('click', async (e) => {
+            // Menü-Logik (PLZ Toggle) - Simpel und direkt
+            document.getElementById('btn-toggle-plz').addEventListener('click', (e) => {
                 plzVisible = !plzVisible;
-                
-                // Beim ersten Öffnen die Daten abrufen
-                if (plzVisible && !plzLoaded) {
-                    e.target.innerText = 'Lade PLZ-Daten...';
-                    try {
-                        const response = await fetch("https://public.opendatasoft.com/api/records/1.0/search/?dataset=georef-germany-postleitzahl&q=D%C3%BCsseldorf&rows=100");
-                        const data = await response.json();
-                        
-                        // Opendatasoft-Daten in sauberes MapLibre-GeoJSON übersetzen
-                        const geojson = {
-                            type: "FeatureCollection",
-                            features: data.records.map(record => ({
-                                type: "Feature",
-                                geometry: record.fields.geo_shape,
-                                properties: { 
-                                    plz_code: record.fields.plz_code || record.fields.plz_name 
-                                }
-                            }))
-                        };
-                        
-                        map.getSource('plz-daten').setData(geojson);
-                        plzLoaded = true;
-                    } catch (error) {
-                        console.error("Geo-API Fehler:", error);
-                        e.target.innerText = 'Fehler beim Laden';
-                        plzVisible = false; // Zurücksetzen bei Fehler
-                        return;
-                    }
-                }
-                
                 const visibility = plzVisible ? 'visible' : 'none';
+                
                 map.setLayoutProperty('plz-linien', 'visibility', visibility);
                 map.setLayoutProperty('plz-labels', 'visibility', visibility);
                 
