@@ -56,6 +56,11 @@
         .btn-active.premium { background-color: #8c00ff; color: white; border-color: #8c00ff; }
         .btn-active.bestAgers { background-color: #00c46a; color: white; border-color: #00c46a; }
 
+        /* Overlays (NEU) */
+        .overlay-btn { background-color: transparent; border: 1px dashed #666; color: #aaa; margin-top: 5px; text-align: center; }
+        .overlay-btn:hover { border-color: #fff; color: #fff; background-color: rgba(255,255,255,0.1); }
+        .overlay-btn.active { border-color: #fff; background-color: #fff; color: #111; border-style: solid; }
+
         .legend { margin-top: 20px; }
         .legend-title { font-size: 11px; color: #aaa; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
         .legend-bar { width: 100%; height: 6px; border-radius: 3px; background: linear-gradient(to right, rgba(0, 124, 255, 0), rgba(0, 124, 255, 0.75)); transition: background 0.3s ease; }
@@ -100,6 +105,9 @@
         <button id="btn-yups" class="menu-btn">YUPs (20-39)</button>
         <button id="btn-premium" class="menu-btn">Premium / DINKs</button>
         <button id="btn-bestAgers" class="menu-btn">Best Agers (60+)</button>
+
+        <h2 class="subtitle" style="margin-top: 20px;">Overlays</h2>
+        <button id="btn-toggle-plz" class="menu-btn overlay-btn">PLZ-Gebiete einblenden</button>
 
         <div class="legend">
             <div class="legend-title">Hotspot-Score</div>
@@ -147,11 +155,11 @@
         const targetNames = { familien: 'Familien', yups: 'YUPs (20-39)', premium: 'Premium (DINKs)', bestAgers: 'Best Agers (60+)' };
 
         let activeTarget = 'familien';
+        let plzVisible = false; // Status für das PLZ-Overlay
 
         function calculateMarketingData(props) {
             const cap = (val) => Math.min(Math.max(Math.round(val || 0), 0), 100);
             
-            // 1. Base Scores (bleiben auch bei Null-Kacheln mathematisch 0)
             let scores = {
                 familien: cap(((props.proxy_familien || 0) / 25) * 100),
                 yups: cap(((props.proxy_alter_20_39 || 0) / 60) * 50 + ((props.proxy_singles || 0) / 50) * 50),
@@ -159,7 +167,6 @@
                 bestAgers: cap(((props.proxy_alter_60_plus || 0) / 50) * 70 + ((props.proxy_eigentuemer || 0) / 50) * 30)
             };
 
-            // NEU: Existenz-Prüfung - Gibt es überhaupt Bewohner in dieser Kachel?
             let isPopulated = ((props.proxy_familien || 0) + (props.proxy_singles || 0) + (props.proxy_paare || 0) + (props.proxy_alter_20_39 || 0) + (props.proxy_alter_60_plus || 0)) > 0;
 
             let hhneRounded = 0;
@@ -169,16 +176,13 @@
             let techScore = 0;
             let eMobilityScore = 0;
 
-            // Nur berechnen, wenn Menschen dort wohnen
             if (isPopulated) {
-                // Finanz-Logik
                 let rawRent = (props.proxy_miete || 9) * (props.proxy_wohnflaeche || 60);
                 let estimatedHHNE = Math.round((rawRent * 3.3) + ((props.proxy_eigentuemer || 0) * 20));
                 if (estimatedHHNE < 1500) estimatedHHNE = 1500 + Math.floor(Math.random() * 500); 
                 hhneRounded = Math.round(estimatedHHNE / 50) * 50; 
                 kaufkraftRounded = Math.round((hhneRounded * 0.45) / 50) * 50;
 
-                // Affinitäts-Logik
                 diyScore = cap(((props.proxy_eigentuemer || 0) * 1.1) + ((props.proxy_wohnflaeche || 0) / 150) * 20);
                 convScore = cap(((props.proxy_singles || 0) / 50) * 45 + ((props.proxy_alter_20_39 || 0) / 60) * 45 + ((props.proxy_miete || 0) / 20) * 10);
                 techScore = cap(((props.proxy_alter_20_39 || 0) / 60) * 50 + ((props.proxy_singles || 0) / 50) * 40 + ((props.proxy_miete || 0) / 20) * 10);
@@ -197,8 +201,8 @@
         }
 
         map.on('load', () => {
+            // 1. Zensus-Daten (Basis-Gitter)
             map.addSource('zensus-daten', { type: 'vector', url: "pmtiles://" + PMTILES_URL });
-
             map.addLayer({
                 'id': 'gitter-layer',
                 'type': 'fill',
@@ -210,6 +214,44 @@
                 }
             });
 
+            // 2. NEU: PLZ-Daten über Live-API (Opendatasoft) laden
+            map.addSource('plz-daten', {
+                'type': 'geojson',
+                'url': 'https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/georef-germany-postleitzahl/exports/geojson?where=krs_name%3D%22D%C3%BCsseldorf%22'
+            });
+
+            // Layer für die PLZ-Grenzen
+            map.addLayer({
+                'id': 'plz-linien',
+                'type': 'line',
+                'source': 'plz-daten',
+                'layout': { 'visibility': 'none' }, // Initial unsichtbar
+                'paint': {
+                    'line-color': '#ffffff',
+                    'line-width': 1.5,
+                    'line-opacity': 0.4,
+                    'line-dasharray': [3, 3]
+                }
+            });
+
+            // Layer für die PLZ-Zahlen (Zentriert)
+            map.addLayer({
+                'id': 'plz-labels',
+                'type': 'symbol',
+                'source': 'plz-daten',
+                'layout': {
+                    'visibility': 'none', // Initial unsichtbar
+                    'text-field': ['get', 'plz_code'],
+                    'text-size': 14
+                },
+                'paint': {
+                    'text-color': '#ffffff',
+                    'text-halo-color': '#111111',
+                    'text-halo-width': 2
+                }
+            });
+
+            // Menü-Logik (Zielgruppen)
             const buttons = [
                 { id: 'btn-familien', type: 'familien' },
                 { id: 'btn-yups', type: 'yups' },
@@ -229,6 +271,24 @@
                 });
             });
 
+            // Menü-Logik (PLZ Toggle)
+            document.getElementById('btn-toggle-plz').addEventListener('click', (e) => {
+                plzVisible = !plzVisible;
+                const visibility = plzVisible ? 'visible' : 'none';
+                
+                map.setLayoutProperty('plz-linien', 'visibility', visibility);
+                map.setLayoutProperty('plz-labels', 'visibility', visibility);
+                
+                if (plzVisible) {
+                    e.target.classList.add('active');
+                    e.target.innerText = 'PLZ-Gebiete ausblenden';
+                } else {
+                    e.target.classList.remove('active');
+                    e.target.innerText = 'PLZ-Gebiete einblenden';
+                }
+            });
+
+            // Pop-up Logik
             map.on('click', 'gitter-layer', (e) => {
                 const props = e.features[0].properties;
                 const data = calculateMarketingData(props);
