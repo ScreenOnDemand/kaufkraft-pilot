@@ -8,6 +8,8 @@
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet">
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
     <script src="https://unpkg.com/pmtiles@3.0.6/dist/pmtiles.js"></script>
+    <!-- NEU: Übersetzer für die stabilen OpenStreetMap Daten -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/osmtogeojson/3.0.0-beta.4/osmtogeojson.min.js"></script>
 
     <style>
         body { margin: 0; padding: 0; font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #111; }
@@ -156,6 +158,7 @@
 
         let activeTarget = 'familien';
         let plzVisible = false;
+        let plzLoaded = false;
 
         function calculateMarketingData(props) {
             const cap = (val) => Math.min(Math.max(Math.round(val || 0), 0), 100);
@@ -169,12 +172,7 @@
 
             let isPopulated = ((props.proxy_familien || 0) + (props.proxy_singles || 0) + (props.proxy_paare || 0) + (props.proxy_alter_20_39 || 0) + (props.proxy_alter_60_plus || 0)) > 0;
 
-            let hhneRounded = 0;
-            let kaufkraftRounded = 0;
-            let diyScore = 0;
-            let convScore = 0;
-            let techScore = 0;
-            let eMobilityScore = 0;
+            let hhneRounded = 0, kaufkraftRounded = 0, diyScore = 0, convScore = 0, techScore = 0, eMobilityScore = 0;
 
             if (isPopulated) {
                 let rawRent = (props.proxy_miete || 9) * (props.proxy_wohnflaeche || 60);
@@ -189,10 +187,7 @@
                 eMobilityScore = cap(((props.proxy_eigentuemer || 0) / 100) * 50 + ((props.proxy_paare || 0) / 25) * 30 + ((props.proxy_familien || 0) / 25) * 20);
             }
 
-            return { 
-                scores, hhne: hhneRounded, kaufkraft: kaufkraftRounded, diy: diyScore, 
-                convenience: convScore, tech: techScore, emobility: eMobilityScore
-            };
+            return { scores, hhne: hhneRounded, kaufkraft: kaufkraftRounded, diy: diyScore, convenience: convScore, tech: techScore, emobility: eMobilityScore };
         }
 
         map.on('load', () => {
@@ -209,10 +204,10 @@
                 }
             });
 
-            // 2. PLZ-Daten direkt über die stabile v2.1 GeoJSON-API laden
+            // 2. PLZ-Daten Source initialisieren (Leer)
             map.addSource('plz-daten', {
                 'type': 'geojson',
-                'data': 'https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/georef-germany-postleitzahl/exports/geojson?where=krs_name%3D%22D%C3%BCsseldorf%22'
+                'data': { type: 'FeatureCollection', features: [] }
             });
 
             // Layer für die PLZ-Grenzen
@@ -236,7 +231,7 @@
                 'source': 'plz-daten',
                 'layout': {
                     'visibility': 'none', 
-                    'text-field': ['get', 'plz_code'],
+                    'text-field': ['get', 'postal_code'], // OSM speichert die PLZ unter "postal_code"
                     'text-size': 14
                 },
                 'paint': {
@@ -266,11 +261,36 @@
                 });
             });
 
-            // Menü-Logik (PLZ Toggle) - Simpel und direkt
-            document.getElementById('btn-toggle-plz').addEventListener('click', (e) => {
+            // NEU: Live-Fetch von OpenStreetMap (Overpass API)
+            document.getElementById('btn-toggle-plz').addEventListener('click', async (e) => {
                 plzVisible = !plzVisible;
-                const visibility = plzVisible ? 'visible' : 'none';
                 
+                if (plzVisible && !plzLoaded) {
+                    e.target.innerText = 'Lade Live-Daten (OSM)...';
+                    try {
+                        // Zieht präzise alle PLZ im Raum Düsseldorf (402xx bis 406xx) aus OpenStreetMap
+                        const query = '[out:json];relation["boundary"="postal_code"]["postal_code"~"^402|^403|^404|^405|^406"];out body;>;out skel qt;';
+                        const url = 'https://overpass-api.de/api/interpreter?data=' + encodeURIComponent(query);
+                        
+                        const response = await fetch(url);
+                        if (!response.ok) throw new Error("Netzwerkfehler");
+                        
+                        const data = await response.json();
+                        
+                        // Das Zauber-Tool: Übersetzt die rohen OSM-Daten sofort in GeoJSON
+                        const geojson = osmtogeojson(data);
+                        
+                        map.getSource('plz-daten').setData(geojson);
+                        plzLoaded = true;
+                    } catch (error) {
+                        console.error("OSM-API Fehler:", error);
+                        e.target.innerText = 'Server aktuell überlastet';
+                        plzVisible = false; 
+                        return;
+                    }
+                }
+                
+                const visibility = plzVisible ? 'visible' : 'none';
                 map.setLayoutProperty('plz-linien', 'visibility', visibility);
                 map.setLayoutProperty('plz-labels', 'visibility', visibility);
                 
